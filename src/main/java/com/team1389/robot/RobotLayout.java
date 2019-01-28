@@ -8,8 +8,8 @@ import com.team1389.hardware.registry.Registry;
  * the robot.
  * 
  */
-public class RobotLayout extends RobotMap {
+public class RobotLayout extends RobotMap
+{
 	public Registry registry;
-
 
 }
