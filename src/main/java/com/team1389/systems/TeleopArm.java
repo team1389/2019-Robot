@@ -107,7 +107,7 @@ public class TeleopArm extends Subsystem
         {
             armSystem.reset();
             manualArmSystem.reset();
-        }, false);
+        });
     }
 
     @Override
