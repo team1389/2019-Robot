@@ -25,9 +25,11 @@ public class TeleopArm extends Subsystem
 
     // control
     private RangeIn<Percent> armAxis;
-    private DigitalIn intakeHatchBtn;
+
+    private DigitalIn intakeHatchGroundBtn;
+    private DigitalIn intakeHatchFeederBtn;
     private DigitalIn intakeCargoBtn;
-    private DigitalIn prepForShootBtn;
+    private DigitalIn prepForClimbBtn;
     private DigitalIn outtakeCargoBtn;
     private DigitalIn outtakeHatchBtn;
 
@@ -60,15 +62,19 @@ public class TeleopArm extends Subsystem
      *                                 input for controlling arm
      * @param outtakeHatchBtn
      *                                 input for triggering outtaking hatch
-     * @param intakeHatchBtn
-     *                                 input for triggering intaking hatch
+     * @param intakeHatchGroundBtn
+     *                                 input for triggering intaking hatch from
+     *                                 the ground
+     * @param intakeHatchFeederBtn
+     *                                 input for triggering intaking hatch from
+     *                                 the feeder
      * @param outtakeCargoBtn
      *                                 input for triggering cargo outtake
      * @param intakeCargoBtn
      *                                 input for triggering cargo intake
-     * @param prepForShootBtn
-     *                                 input for triggering output into the
-     *                                 shooter, to get ready to shoot
+     * @param prepForClimbBtn
+     *                                 input for moving arm to its pos for
+     *                                 climbing
      * @param toggleManualModeBtn
      *                                 toggle manual mode
      * @param useBeamBreakInManual
@@ -77,8 +83,9 @@ public class TeleopArm extends Subsystem
      */
     public TeleopArm(DigitalOut hatchOuttake, DigitalOut cargoLauncher, RangeOut<Percent> cargoIntake,
             RangeOut<Percent> arm, DigitalIn cargoIntakeBeamBreak, RangeIn<Position> armAngle, RangeIn<Percent> armAxis,
-            DigitalIn outtakeHatchBtn, DigitalIn intakeHatchBtn, DigitalIn outtakeCargoBtn, DigitalIn intakeCargoBtn,
-            DigitalIn prepForShootBtn, DigitalIn toggleManualModeBtn, boolean useBeamBreakInManual)
+            DigitalIn outtakeHatchBtn, DigitalIn intakeHatchGroundBtn, DigitalIn intakeHatchFeederBtn,
+            DigitalIn outtakeCargoBtn, DigitalIn intakeCargoBtn, DigitalIn prepForClimbBtn,
+            DigitalIn toggleManualModeBtn, boolean useBeamBreakInManual)
     {
         this.hatchOuttake = hatchOuttake;
         this.cargoLauncher = cargoLauncher;
@@ -87,9 +94,11 @@ public class TeleopArm extends Subsystem
         this.cargoIntakeBeamBreak = cargoIntakeBeamBreak;
         this.armAxis = armAxis;
         this.outtakeHatchBtn = outtakeHatchBtn;
+        this.intakeHatchGroundBtn = intakeHatchGroundBtn;
+        this.intakeHatchFeederBtn = intakeHatchFeederBtn;
         this.outtakeCargoBtn = outtakeCargoBtn;
         this.intakeCargoBtn = intakeCargoBtn;
-        this.prepForShootBtn = prepForShootBtn;
+        this.prepForClimbBtn = prepForClimbBtn;
         this.toggleManualModeBtn = toggleManualModeBtn;
         this.useBeamBreakInManual = useBeamBreakInManual;
 
@@ -102,7 +111,7 @@ public class TeleopArm extends Subsystem
         manualArmSystem = new ManualArm(hatchOuttake, cargoLauncher, cargoIntake, arm, cargoIntakeBeamBreak, armAxis,
                 outtakeHatchBtn, intakeCargoBtn, outtakeCargoBtn, useBeamBreakInManual);
 
-        // I don't actually know if change listener will work like this
+        // stop all output when switching between modes
         currentlyInManual = new DigitalIn(() -> USE_MANUAL || toggleManualModeBtn.get()).addChangeListener((changed) ->
         {
             armSystem.reset();
@@ -127,13 +136,17 @@ public class TeleopArm extends Subsystem
 
     private void advancedUpdate()
     {
-        if (intakeHatchBtn.get())
+        if (intakeHatchGroundBtn.get())
         {
-            armSystem.enterState(State.INTAKE_HATCH);
+            armSystem.enterState(State.INTAKE_HATCH_FROM_GROUND);
+        }
+        else if (intakeHatchFeederBtn.get())
+        {
+            armSystem.enterState(State.INTAKE_HATCH_FROM_FEEDER);
         }
         else if (intakeCargoBtn.get())
         {
-            armSystem.enterState(State.INTAKE_CARGO);
+            armSystem.enterState(State.INTAKE_CARGO_FROM_GROUND);
         }
         else if (outtakeCargoBtn.get())
         {
@@ -143,9 +156,9 @@ public class TeleopArm extends Subsystem
         {
             armSystem.enterState(State.OUTTAKE_HATCH);
         }
-        else if (prepForShootBtn.get())
+        else if (prepForClimbBtn.get())
         {
-            armSystem.enterState(State.PREPING_FOR_SHOOT);
+            armSystem.enterState(State.CLIMBING);
         }
         armSystem.update();
     }
