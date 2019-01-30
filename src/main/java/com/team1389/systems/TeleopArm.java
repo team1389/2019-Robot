@@ -5,17 +5,14 @@ import com.team1389.hardware.inputs.software.RangeIn;
 import com.team1389.hardware.outputs.software.DigitalOut;
 import com.team1389.hardware.outputs.software.RangeOut;
 import com.team1389.hardware.value_types.Percent;
+import com.team1389.hardware.value_types.Position;
 import com.team1389.system.Subsystem;
+import com.team1389.systems.Arm.State;
 import com.team1389.util.list.AddList;
 import com.team1389.watch.Watchable;
 
-/**
- * Allows for manual control of arm, cargo intake, & hatch intake with or
- * without beam break
- */
-public class ManualArm extends Subsystem
+public class TeleopArm extends Subsystem
 {
-
     // output
     private DigitalOut hatchOuttake;
     private DigitalOut cargoLauncher;
@@ -24,14 +21,19 @@ public class ManualArm extends Subsystem
 
     // sensors
     private DigitalIn cargoIntakeBeamBreak;
+    private RangeIn<Position> armAngle;
 
     // control
     private RangeIn<Percent> armAxis;
-    private DigitalIn outtakeHatchBtn;
+    private DigitalIn intakeHatchBtn;
     private DigitalIn intakeCargoBtn;
+    private DigitalIn storeCargoBtn;
     private DigitalIn outtakeCargoBtn;
+    private DigitalIn outtakeHatchBtn;
 
     private boolean useBeamBreak = true;
+
+    private Arm armSystem;
 
     /**
      * 
@@ -59,9 +61,10 @@ public class ManualArm extends Subsystem
      *                                 toggle for whether or not to use the beam
      *                                 break
      */
-    public ManualArm(DigitalOut hatchOuttake, DigitalOut cargoLauncher, RangeOut<Percent> cargoIntake,
-            RangeOut<Percent> arm, DigitalIn cargoIntakeBeamBreak, RangeIn<Percent> armAxis, DigitalIn outtakeHatchBtn,
-            DigitalIn intakeCargoBtn, DigitalIn outtakeCargoBtn, boolean useBeamBreak)
+    public TeleopArm(DigitalOut hatchOuttake, DigitalOut cargoLauncher, RangeOut<Percent> cargoIntake,
+            RangeOut<Percent> arm, DigitalIn cargoIntakeBeamBreak, RangeIn<Position> armAngle, RangeIn<Percent> armAxis,
+            DigitalIn outtakeHatchBtn, DigitalIn outtakeCargoBtn, DigitalIn intakeHatchBtn, DigitalIn intakeCargoBtn,
+            DigitalIn storeCargoBtn, boolean useBeamBreak)
     {
         this.hatchOuttake = hatchOuttake;
         this.cargoLauncher = cargoLauncher;
@@ -72,87 +75,59 @@ public class ManualArm extends Subsystem
         this.outtakeHatchBtn = outtakeHatchBtn;
         this.intakeCargoBtn = intakeCargoBtn;
         this.outtakeCargoBtn = outtakeCargoBtn;
+        this.storeCargoBtn = storeCargoBtn;
         this.useBeamBreak = useBeamBreak;
     }
 
     @Override
     public void init()
     {
-        // doing through copy until ohm fixes come on
-        outtakeHatchBtn = outtakeHatchBtn.getToggled();
-    }
-
-    @Override
-    public String getName()
-    {
-        return "Manual Arm";
-    }
-
-    // TODO: add watchables without overlapping
-    @Override
-    public AddList<Watchable> getSubWatchables(AddList<Watchable> arg0)
-    {
-        return arg0;
+        armSystem = new Arm(hatchOuttake, cargoLauncher, cargoIntake, arm, cargoIntakeBeamBreak, armAngle);
     }
 
     @Override
     public void update()
     {
-        arm.set(armAxis.get());
-        updateHatch();
-        if (useBeamBreak)
-        {
-            updateCargoWithBeamBreak();
-        }
-        else
-        {
-            updateCargoWithoutBeamBreak();
-        }
+        advancedUpdate();
+        // I don't know how to add manual control as backup without having
+        // control be really confusing
     }
 
-    private void updateHatch()
+    private void advancedUpdate()
     {
-        if (outtakeHatchBtn.get())
+        if (intakeHatchBtn.get())
         {
-            hatchOuttake.set(true);
+            armSystem.enterState(State.HATCH_PICK_UP);
         }
-        else
+        else if (intakeCargoBtn.get())
         {
-            hatchOuttake.set(false);
-        }
-    }
-
-    private void updateCargoWithBeamBreak()
-    {
-        // This might have trouble with piston retracting too slow
-        if (!cargoIntakeBeamBreak.get() && intakeCargoBtn.get())
-        {
-            cargoLauncher.set(false);
-            cargoIntake.set(1);
-        }
-        else if (cargoIntakeBeamBreak.get() && outtakeCargoBtn.get())
-        {
-            // extend piston
-            cargoLauncher.set(true);
-            cargoIntake.set(-1);
-        }
-        cargoIntake.set(0);
-    }
-
-    private void updateCargoWithoutBeamBreak()
-    {
-        // This might have trouble with piston retracting too slow
-        if (intakeCargoBtn.get())
-        {
-            cargoLauncher.set(false);
-            cargoIntake.set(1);
+            armSystem.enterState(State.CARGO_PICK_UP);
         }
         else if (outtakeCargoBtn.get())
         {
-            // extend piston
-            cargoLauncher.set(true);
-            cargoIntake.set(-1);
+            armSystem.enterState(State.OUTTAKE_CARGO);
         }
-        cargoIntake.set(0);
+        else if (outtakeHatchBtn.get())
+        {
+            armSystem.enterState(State.OUTTAKE_HATCH);
+        }
+        else if (storeCargoBtn.get())
+        {
+            armSystem.enterState(State.STORE_CARGO);
+        }
+        armSystem.update();
+    }
+
+    @Override
+    public String getName()
+    {
+        return "Teleop Arm";
+    }
+
+    // TODO: add watchables, figure out how to do this right
+    @Override
+    public AddList<Watchable> getSubWatchables(AddList<Watchable> arg0)
+    {
+        return arg0;
     }
 }
