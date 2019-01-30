@@ -27,13 +27,18 @@ public class TeleopArm extends Subsystem
     private RangeIn<Percent> armAxis;
     private DigitalIn intakeHatchBtn;
     private DigitalIn intakeCargoBtn;
-    private DigitalIn storeCargoBtn;
+    private DigitalIn prepForShootBtn;
     private DigitalIn outtakeCargoBtn;
     private DigitalIn outtakeHatchBtn;
 
-    private boolean useBeamBreak = true;
+    private DigitalIn toggleManualModeBtn;
 
+    // config
+    private boolean useBeamBreakInManual = true;
+    private final boolean USE_MANUAL = false;
+    private DigitalIn currentlyInManual;
     private Arm armSystem;
+    private ManualArm manualArmSystem;
 
     /**
      * 
@@ -49,22 +54,31 @@ public class TeleopArm extends Subsystem
      * @param cargoIntakeBeamBreak
      *                                 input from beam break that detects if
      *                                 cargo is in the intake
+     * @param armAngle
+     *                                 gives angle of the arm in degrees
      * @param armAxis
      *                                 input for controlling arm
      * @param outtakeHatchBtn
      *                                 input for triggering outtaking hatch
-     * @param intakeCargoBtn
-     *                                 input for triggering cargo intake
+     * @param intakeHatchBtn
+     *                                 input for triggering intaking hatch
      * @param outtakeCargoBtn
      *                                 input for triggering cargo outtake
-     * @param useBeamBreak
+     * @param intakeCargoBtn
+     *                                 input for triggering cargo intake
+     * @param prepForShootBtn
+     *                                 input for triggering output into the
+     *                                 shooter, to get ready to shoot
+     * @param toggleManualModeBtn
+     *                                 toggle manual mode
+     * @param useBeamBreakInManual
      *                                 toggle for whether or not to use the beam
-     *                                 break
+     *                                 break in manual mode
      */
     public TeleopArm(DigitalOut hatchOuttake, DigitalOut cargoLauncher, RangeOut<Percent> cargoIntake,
             RangeOut<Percent> arm, DigitalIn cargoIntakeBeamBreak, RangeIn<Position> armAngle, RangeIn<Percent> armAxis,
-            DigitalIn outtakeHatchBtn, DigitalIn outtakeCargoBtn, DigitalIn intakeHatchBtn, DigitalIn intakeCargoBtn,
-            DigitalIn storeCargoBtn, boolean useBeamBreak)
+            DigitalIn outtakeHatchBtn, DigitalIn intakeHatchBtn, DigitalIn outtakeCargoBtn, DigitalIn intakeCargoBtn,
+            DigitalIn prepForShootBtn, DigitalIn toggleManualModeBtn, boolean useBeamBreakInManual)
     {
         this.hatchOuttake = hatchOuttake;
         this.cargoLauncher = cargoLauncher;
@@ -73,35 +87,53 @@ public class TeleopArm extends Subsystem
         this.cargoIntakeBeamBreak = cargoIntakeBeamBreak;
         this.armAxis = armAxis;
         this.outtakeHatchBtn = outtakeHatchBtn;
-        this.intakeCargoBtn = intakeCargoBtn;
         this.outtakeCargoBtn = outtakeCargoBtn;
-        this.storeCargoBtn = storeCargoBtn;
-        this.useBeamBreak = useBeamBreak;
+        this.intakeCargoBtn = intakeCargoBtn;
+        this.prepForShootBtn = prepForShootBtn;
+        this.toggleManualModeBtn = toggleManualModeBtn;
+        this.useBeamBreakInManual = useBeamBreakInManual;
+
     }
 
     @Override
     public void init()
     {
         armSystem = new Arm(hatchOuttake, cargoLauncher, cargoIntake, arm, cargoIntakeBeamBreak, armAngle);
+        manualArmSystem = new ManualArm(hatchOuttake, cargoLauncher, cargoIntake, arm, cargoIntakeBeamBreak, armAxis,
+                outtakeHatchBtn, intakeCargoBtn, outtakeCargoBtn, useBeamBreakInManual);
+
+        // I don't actually know if change listener will work like this
+        currentlyInManual = new DigitalIn(() -> USE_MANUAL || toggleManualModeBtn.get()).addChangeListener((changed) ->
+        {
+            armSystem.reset();
+            manualArmSystem.reset();
+        }, false);
     }
 
     @Override
     public void update()
     {
-        advancedUpdate();
-        // I don't know how to add manual control as backup without having
-        // control be really confusing
+        if (currentlyInManual.get())
+        {
+            manualUpdate();
+        }
+        else
+        {
+            advancedUpdate();
+
+        }
+
     }
 
     private void advancedUpdate()
     {
         if (intakeHatchBtn.get())
         {
-            armSystem.enterState(State.HATCH_PICK_UP);
+            armSystem.enterState(State.INTAKE_HATCH);
         }
         else if (intakeCargoBtn.get())
         {
-            armSystem.enterState(State.CARGO_PICK_UP);
+            armSystem.enterState(State.INTAKE_CARGO);
         }
         else if (outtakeCargoBtn.get())
         {
@@ -111,11 +143,16 @@ public class TeleopArm extends Subsystem
         {
             armSystem.enterState(State.OUTTAKE_HATCH);
         }
-        else if (storeCargoBtn.get())
+        else if (prepForShootBtn.get())
         {
-            armSystem.enterState(State.STORE_CARGO);
+            armSystem.enterState(State.PREPING_FOR_SHOOT);
         }
         armSystem.update();
+    }
+
+    private void manualUpdate()
+    {
+        manualArmSystem.update();
     }
 
     @Override
@@ -124,10 +161,9 @@ public class TeleopArm extends Subsystem
         return "Teleop Arm";
     }
 
-    // TODO: add watchables, figure out how to do this right
     @Override
     public AddList<Watchable> getSubWatchables(AddList<Watchable> arg0)
     {
-        return arg0;
+        return arg0.put(manualArmSystem, armSystem);
     }
 }

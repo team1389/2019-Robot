@@ -46,7 +46,8 @@ public class ManualArm extends Subsystem
      *                                 controller for arm motion
      * @param cargoIntakeBeamBreak
      *                                 input from beam break that detects if
-     *                                 cargo is in the intake
+     *                                 cargo is in the intake (Must be true when
+     *                                 it detects)
      * @param armAxis
      *                                 input for controlling arm
      * @param outtakeHatchBtn
@@ -78,7 +79,6 @@ public class ManualArm extends Subsystem
     @Override
     public void init()
     {
-        // doing through copy until ohm fixes come on
         outtakeHatchBtn = outtakeHatchBtn.getToggled();
     }
 
@@ -88,11 +88,12 @@ public class ManualArm extends Subsystem
         return "Manual Arm";
     }
 
-    // TODO: add watchables without overlapping
     @Override
     public AddList<Watchable> getSubWatchables(AddList<Watchable> arg0)
     {
-        return arg0;
+        return arg0.put(cargoLauncher.getWatchable("launch piston manual"),
+                cargoIntakeBeamBreak.getWatchable("cargo intaken"), hatchOuttake.getWatchable("hatch outtake pistons"),
+                cargoIntake.getWatchable("cargo intake wheels"));
     }
 
     @Override
@@ -110,6 +111,15 @@ public class ManualArm extends Subsystem
         }
     }
 
+    public void reset()
+    {
+        cargoIntake.set(0);
+        arm.set(0);
+    }
+
+    /**
+     * assumes outtakeHatchBtn is toggled
+     */
     private void updateHatch()
     {
         if (outtakeHatchBtn.get())
@@ -122,8 +132,13 @@ public class ManualArm extends Subsystem
         }
     }
 
+    /**
+     * Precondition: Beam break must be configged so it's true when it detects
+     * something
+     */
     private void updateCargoWithBeamBreak()
     {
+
         // This might have trouble with piston retracting too slow
         if (!cargoIntakeBeamBreak.get() && intakeCargoBtn.get())
         {

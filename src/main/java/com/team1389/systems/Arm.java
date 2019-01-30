@@ -13,7 +13,11 @@ import com.team1389.hardware.value_types.Position;
 import com.team1389.system.Subsystem;
 import com.team1389.util.list.AddList;
 import com.team1389.watch.Watchable;
+import com.team1389.watch.info.StringInfo;
 
+/**
+ * implements autonomous control of arm subsystem
+ */
 public class Arm extends Subsystem
 {
     // Closed-loop control
@@ -21,7 +25,7 @@ public class Arm extends Subsystem
     private PIDConstants pidConstants;
     private final int TOLERANCE_IN_DEGREES = 3;
 
-    State currentState;
+    private State currentState;
 
     // output
     private DigitalOut hatchOuttake;
@@ -31,8 +35,6 @@ public class Arm extends Subsystem
 
     // sensors
     private DigitalIn cargoIntakeBeamBreak;
-
-    // control
     private RangeIn<Position> armAngle;
 
     /**
@@ -48,16 +50,10 @@ public class Arm extends Subsystem
      *                                 controller for arm motion
      * @param cargoIntakeBeamBreak
      *                                 input from beam break that detects if
-     *                                 cargo is in the intake
-     * @param outtakeHatchBtn
-     *                                 input for triggering outtaking hatch
-     * @param intakeCargoBtn
-     *                                 input for triggering cargo intake
-     * @param outtakeCargoBtn
-     *                                 input for triggering cargo outtake
-     * @param useBeamBreak
-     *                                 toggle for whether or not to use the beam
-     *                                 break
+     *                                 cargo is in the intake (Must be true when
+     *                                 it detects)
+     * @param armAngle
+     *                                 gives angle of the arm in degrees
      */
     public Arm(DigitalOut hatchOuttake, DigitalOut cargoLauncher, RangeOut<Percent> cargoIntake, RangeOut<Percent> arm,
             DigitalIn cargoIntakeBeamBreak, RangeIn<Position> armAngle)
@@ -84,7 +80,8 @@ public class Arm extends Subsystem
     @Override
     public void update()
     {
-        controller.update();
+        // I don't think I have to update the pid controller seperately
+        scheduler.update();
     }
 
     @Override
@@ -93,67 +90,77 @@ public class Arm extends Subsystem
         return "Arm";
     }
 
-    // TODO: add watchables, try to keep from overlapping
     @Override
     public AddList<Watchable> getSubWatchables(AddList<Watchable> arg0)
     {
-        return arg0;
+        return arg0.put(new StringInfo("arm state", () -> currentState.name), scheduler);
     }
 
     public enum State
     {
-        HATCH_PICK_UP(-15), CARGO_PICK_UP(-15), STORE_CARGO(115), PASSIVE(115), OUTTAKE_CARGO(45), OUTTAKE_HATCH(90);
+        INTAKE_HATCH(-15, "Intake Hatch"), INTAKE_CARGO(-15, "Intake Cargo"), PREPING_FOR_SHOOT(115,
+                "Preparing for shoot "), PASSIVE(115,
+                        "Passive"), OUTTAKE_CARGO(45, "Outtake Cargo"), OUTTAKE_HATCH(90, "Outtake Hatch");
         // assumes 0 is when arm is parallel with the robot top
         private double angle;
+        private String name;
 
-        private State(double angle)
+        private State(double angle, String name)
         {
             this.angle = angle;
+            this.name = name;
         }
     }
 
+    // Probably need wait times before outtaking for most of these
     public void enterState(State desiredState)
     {
         reset();
         switch (desiredState)
         {
-        case HATCH_PICK_UP:
-            controller.setSetpoint(State.HATCH_PICK_UP.angle);
+        case INTAKE_HATCH:
+            controller.setSetpoint(State.INTAKE_HATCH.angle);
             Command hatchPickUp = CommandUtil.combineSequential(extendHatchPistonsCommand(false),
-                    controller.getPIDToCommand(TOLERANCE_IN_DEGREES));
+                    controller.getPIDToCommand(TOLERANCE_IN_DEGREES)).setName("move and intake hatch");
             scheduler.schedule(hatchPickUp);
             break;
-        case CARGO_PICK_UP:
-            controller.setSetpoint(State.CARGO_PICK_UP.angle);
-            Command cargoPickUp = CommandUtil.combineSequential(extendHatchPistonsCommand(false),
-                    extendCargoPistonsCommand(false), controller.getPIDToCommand(TOLERANCE_IN_DEGREES),
-                    intakeCargoCommand());
+        case INTAKE_CARGO:
+            controller.setSetpoint(State.INTAKE_CARGO.angle);
+            Command cargoPickUp = CommandUtil
+                    .combineSequential(extendHatchPistonsCommand(false), extendCargoPistonsCommand(false),
+                            controller.getPIDToCommand(TOLERANCE_IN_DEGREES), intakeCargoCommand())
+                    .setName("move and intake cargo");
             scheduler.schedule(cargoPickUp);
             break;
-        case STORE_CARGO:
-            controller.setSetpoint(State.STORE_CARGO.angle);
-            Command storeCargo = CommandUtil.combineSequential(controller.getPIDToCommand(TOLERANCE_IN_DEGREES),
-                    outtakeCargoCommand());
+        case PREPING_FOR_SHOOT:
+            controller.setSetpoint(State.PREPING_FOR_SHOOT.angle);
+            Command storeCargo = CommandUtil
+                    .combineSequential(controller.getPIDToCommand(TOLERANCE_IN_DEGREES), outtakeCargoCommand())
+                    .setName("Prepare for shooting");
             scheduler.schedule(storeCargo);
             break;
         case OUTTAKE_CARGO:
             controller.setSetpoint(State.OUTTAKE_CARGO.angle);
             Command outtakeCargo = CommandUtil.combineSequential(controller.getPIDToCommand(TOLERANCE_IN_DEGREES),
-                    extendCargoPistonsCommand(true), outtakeCargoCommand());
+                    extendCargoPistonsCommand(true), outtakeCargoCommand()).setName("move and outtake cargo");
             scheduler.schedule(outtakeCargo);
             break;
         case OUTTAKE_HATCH:
             controller.setSetpoint(State.OUTTAKE_HATCH.angle);
             Command outtakeHatch = CommandUtil.combineSequential(controller.getPIDToCommand(TOLERANCE_IN_DEGREES),
-                    extendHatchPistonsCommand(true));
+                    extendHatchPistonsCommand(true)).setName("move and outtake hatch");
             scheduler.schedule(outtakeHatch);
+            break;
+        case PASSIVE:
+            // you don't do anything because you should never be manually
+            // entering passive
             break;
         }
         // should always go back to passive after finishing other commands
         scheduler.schedule(goToPassiveCommand());
     }
 
-    private void reset()
+    public void reset()
     {
         scheduler.cancelAll();
         arm.set(0);
@@ -162,19 +169,20 @@ public class Arm extends Subsystem
 
     private Command goToPassiveCommand()
     {
-        return CommandUtil.combineSequential(
-                CommandUtil.createCommand(() -> controller.setSetpoint(State.PASSIVE.angle)),
-                controller.getPIDToCommand(TOLERANCE_IN_DEGREES));
+        return CommandUtil
+                .combineSequential(CommandUtil.createCommand(() -> controller.setSetpoint(State.PASSIVE.angle)),
+                        controller.getPIDToCommand(TOLERANCE_IN_DEGREES))
+                .setName("Go To Passive");
     }
 
     private Command extendHatchPistonsCommand(boolean extend)
     {
-        return CommandUtil.createCommand(() -> hatchOuttake.set(extend));
+        return CommandUtil.createCommand(() -> hatchOuttake.set(extend)).setName("extend hatch piston");
     }
 
     private Command extendCargoPistonsCommand(boolean extend)
     {
-        return CommandUtil.createCommand(() -> cargoLauncher.set(extend));
+        return CommandUtil.createCommand(() -> cargoLauncher.set(extend)).setName("extend cargo piston");
     }
 
     private Command intakeCargoCommand()
@@ -193,7 +201,8 @@ public class Arm extends Subsystem
             {
                 cargoIntake.set(0);
             }
-        };
+
+        }.setName("intake cargo");
     }
 
     private Command outtakeCargoCommand()
@@ -212,7 +221,7 @@ public class Arm extends Subsystem
             {
                 cargoIntake.set(0);
             }
-        };
+        }.setName("outtake cargo");
     }
 
 }
