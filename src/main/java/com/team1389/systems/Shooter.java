@@ -1,5 +1,6 @@
 package com.team1389.systems;
 
+import com.team1389.auto.command.WaitTimeCommand;
 import com.team1389.command_framework.CommandUtil;
 import com.team1389.command_framework.command_base.Command;
 import com.team1389.hardware.inputs.software.DigitalIn;
@@ -7,74 +8,115 @@ import com.team1389.hardware.outputs.software.DigitalOut;
 import com.team1389.system.Subsystem;
 import com.team1389.util.list.AddList;
 import com.team1389.watch.Watchable;
-import com.team1389.watch.info.BooleanInfo;
 
 public class Shooter extends Subsystem
 {
-    private DigitalIn beamBreak;
+   
+    //Output
     private DigitalOut leftShooter;
     private DigitalOut rightShooter;
+    //Sensors
+    private DigitalIn hasCargo;
+    //Constants
+    private final int WAIT_UNTIL_EXTENDED = 1;
 
-    public Shooter(DigitalOut rightShooter, DigitalOut leftShooter, DigitalIn beamBreak)
+    /**
+     * @param rightShooter Piston for shooting ball to the right
+     * 
+     * @param leftShooter Piston for shooting ball to the left
+     * 
+     * @param hasCargo Beam break checking whether there is a ball in the shooter or not
+     */
+
+    
+    public Shooter(DigitalOut rightShooter, DigitalOut leftShooter, DigitalIn hasCargo)
     {
         this.rightShooter = rightShooter;
         this.leftShooter = leftShooter;
-        this.beamBreak = beamBreak;
+        this.hasCargo = hasCargo;
     }
+
     public AddList<Watchable> getSubWatchables(AddList<Watchable> stem)
     {
-        return stem.put(scheduler, new BooleanInfo("ball", this::hasBall));
+        return stem.put(scheduler, hasCargo.getWatchable("hasCargo"));
     }
-    protected void schedule(Command command)
-    {
-        super.schedule(command);
-    }
+
+    @Override
     public String getName()
     {
         return "Shooter";
     }
+
     public void init()
     {
 
     }
+
     public void update()
     {
-
-    }
-    public void shootRight()
-    {
-        rightShooter.set(true);
-    }
-    public Command shootRightCommand()
-    {
-        return CommandUtil.createCommand(this::shootRight);
+        scheduler.update();
     }
 
-    public void shootLeft(){
-        leftShooter.set(true);
-    }
-    public Command shootLeftCommand()
+    private void shootRightPiston()
     {
-        return CommandUtil.createCommand(this::shootLeft);
+        if(hasCargo())
+        {
+            rightShooter.set(true);
+        }
     }
-    public void resetRightShooter()
+
+    private boolean hasCargo() {
+        return hasCargo.get();
+    }
+
+    private Command shootRightCommand()
     {
-        rightShooter.set(false);
+        return CommandUtil.createCommand(this::shootRightPiston);
     }
-    public void resetLeftShooter()
+
+    private void shootLeftPiston()
+    {
+        if(hasCargo())
+        {
+            leftShooter.set(true);
+        }
+    }
+
+    private Command shootLeftCommand()
+    {
+        return CommandUtil.createCommand(this::shootLeftPiston);
+        
+    }
+
+    private void resetShooters()
     {
         leftShooter.set(false);
+        rightShooter.set(false);
     }
-    public Command resetRightShooterCommand()
+
+    private Command resetShootersCommand()
     {
-        return CommandUtil.createCommand(this::resetRightShooter);
+        return CommandUtil.createCommand(this::resetShooters);
+    }  
+
+    private Command shootRightReset()
+    {
+        return CommandUtil.combineSequential(shootRightCommand(), new WaitTimeCommand(WAIT_UNTIL_EXTENDED), resetShootersCommand());
+        
     }
-    public Command resetLeftShooterCommand()
+
+    public void shootRight()
     {
-        return CommandUtil.createCommand(this::resetLeftShooter);
+        scheduler.schedule(shootRightReset());
     }
-    public boolean hasBall()
+
+    private Command shootLeftReset()
     {
-        return beamBreak.get();
+        return CommandUtil.combineSequential(shootLeftCommand(), new WaitTimeCommand(WAIT_UNTIL_EXTENDED), resetShootersCommand());
+    }
+
+    public void shootLeft()
+    {
+        scheduler.schedule(shootLeftReset());
     }
 }
