@@ -32,6 +32,7 @@ public class TeleopArm extends Subsystem
     private DigitalIn prepForClimbBtn;
     private DigitalIn outtakeCargoBtn;
     private DigitalIn outtakeHatchBtn;
+    private DigitalIn storeCargoBtn;
 
     private DigitalIn toggleManualModeBtn;
 
@@ -75,6 +76,9 @@ public class TeleopArm extends Subsystem
      * @param prepForClimbBtn
      *                                 input for moving arm to its pos for
      *                                 climbing
+     * @param storeCargoBtn
+     *                                 triggers motion of arm to cargo drop off
+     *                                 pos, and then outtake into shooter
      * @param toggleManualModeBtn
      *                                 toggle manual mode
      * @param useBeamBreakInManual
@@ -84,7 +88,7 @@ public class TeleopArm extends Subsystem
     public TeleopArm(DigitalOut hatchOuttake, DigitalOut cargoLauncher, RangeOut<Percent> cargoIntake,
             RangeOut<Percent> arm, DigitalIn cargoIntakeBeamBreak, RangeIn<Position> armAngle, RangeIn<Percent> armAxis,
             DigitalIn outtakeHatchBtn, DigitalIn intakeHatchGroundBtn, DigitalIn intakeHatchFeederBtn,
-            DigitalIn outtakeCargoBtn, DigitalIn intakeCargoBtn, DigitalIn prepForClimbBtn,
+            DigitalIn outtakeCargoBtn, DigitalIn intakeCargoBtn, DigitalIn prepForClimbBtn, DigitalIn storeCargoBtn,
             DigitalIn toggleManualModeBtn, boolean useBeamBreakInManual)
     {
         this.hatchOuttake = hatchOuttake;
@@ -99,6 +103,7 @@ public class TeleopArm extends Subsystem
         this.outtakeCargoBtn = outtakeCargoBtn;
         this.intakeCargoBtn = intakeCargoBtn;
         this.prepForClimbBtn = prepForClimbBtn;
+        this.storeCargoBtn = storeCargoBtn;
         this.toggleManualModeBtn = toggleManualModeBtn;
         this.useBeamBreakInManual = useBeamBreakInManual;
 
@@ -155,6 +160,10 @@ public class TeleopArm extends Subsystem
         else if (outtakeHatchBtn.get())
         {
             armSystem.enterState(State.OUTTAKE_HATCH);
+        }
+        else if (storeCargoBtn.get())
+        {
+            armSystem.enterState(State.STORE_CARGO);
         }
         else if (prepForClimbBtn.get())
         {

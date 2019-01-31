@@ -137,7 +137,7 @@ public class Arm extends Subsystem
                             controller.getPIDToCommand(TOLERANCE_IN_DEGREES), intakeCargoCommand())
                     .setName("move and intake cargo");
             scheduler.schedule(cargoPickUp);
-            scheduler.schedule(CommandUtil.createCommand(() -> enterState(State.STORE_CARGO)));
+            scheduler.schedule(goToStoreCargo());
             break;
 
         case OUTTAKE_CARGO:
@@ -145,19 +145,21 @@ public class Arm extends Subsystem
             Command outtakeCargo = CommandUtil.combineSequential(controller.getPIDToCommand(TOLERANCE_IN_DEGREES),
                     extendCargoPistonsCommand(true), outtakeCargoCommand()).setName("move and outtake cargo");
             scheduler.schedule(outtakeCargo);
-            scheduler.schedule(CommandUtil.createCommand(() -> enterState(State.STORE_CARGO)));
+            scheduler.schedule(goToStoreCargo());
+
             break;
         case OUTTAKE_HATCH:
             Command outtakeHatch = CommandUtil
                     .combineSequential(goToOuttakeHatchCommand(), extendHatchPistonsCommand(true))
                     .setName("move and outtake hatch");
             scheduler.schedule(outtakeHatch);
-            scheduler.schedule(CommandUtil.createCommand(() -> enterState(State.STORE_CARGO)));
+            scheduler.schedule(goToStoreCargo());
             break;
         case CLIMBING:
             controller.setSetpoint(State.CLIMBING.angle);
             Command goToClimbing = controller.getPIDToCommand(TOLERANCE_IN_DEGREES);
             scheduler.schedule(goToClimbing);
+            scheduler.schedule(goToStoreCargo());
             break;
         case STORE_CARGO:
             Command storeCargo = CommandUtil
@@ -191,6 +193,14 @@ public class Arm extends Subsystem
     public AddList<Watchable> getSubWatchables(AddList<Watchable> arg0)
     {
         return arg0.put(new StringInfo("arm state", () -> currentState.name), scheduler);
+    }
+
+    private Command goToStoreCargo()
+    {
+        return CommandUtil
+                .combineSequential(CommandUtil.createCommand(() -> controller.setSetpoint(State.STORE_CARGO.angle)),
+                        controller.getPIDToCommand(TOLERANCE_IN_DEGREES))
+                .setName("go to store cargo");
     }
 
     private Command goToOuttakeHatchCommand()
