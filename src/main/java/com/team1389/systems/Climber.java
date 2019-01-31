@@ -1,6 +1,4 @@
-package com.team1389.robot;
-
-import java.util.function.Supplier;
+package com.team1389.systems;
 
 import com.team1389.command_framework.CommandUtil;
 import com.team1389.command_framework.command_base.Command;
@@ -11,11 +9,9 @@ import com.team1389.system.Subsystem;
 import com.team1389.util.list.AddList;
 import com.team1389.watch.Watchable;
 import com.team1389.watch.info.BooleanInfo;
-import com.team1389.watch.info.EnumInfo;
 
 public class Climber extends Subsystem
 {
-    private State climberState;
     private DigitalIn bumpSwitch;
     private PercentOut wheelVoltage;
     private DigitalOut liftPiston;
@@ -28,7 +24,7 @@ public class Climber extends Subsystem
     }
     public AddList<Watchable> getSubWatchables(AddList<Watchable> stem)
     {
-        return stem.put(new EnumInfo("climber state", () -> climberState), scheduler, new BooleanInfo("switch", this::switchBumped));
+        return stem.put(scheduler, new BooleanInfo("switch", this::switchBumped));
     }
     protected void schedule(Command command)
     {
@@ -45,27 +41,6 @@ public class Climber extends Subsystem
     public void update()
     {
 
-    }
-    public State getState()
-    {
-        return this.climberState;
-    }
-    public enum State
-    {
-        CLIMBING, RETRACTING
-    }
-    public void enterState(State state)
-    {
-        if(state == climberState){
-            return;
-        }
-        switch(state)
-        {
-        case CLIMBING:
-            return (climbCommand());
-        case RETRACTING:
-            return (retract());
-        }
     }
     public void climb()
     {

@@ -1,6 +1,4 @@
-package com.team1389.robot;
-
-import java.util.function.Supplier;
+package com.team1389.systems;
 
 import com.team1389.command_framework.CommandUtil;
 import com.team1389.command_framework.command_base.Command;
@@ -10,13 +8,9 @@ import com.team1389.system.Subsystem;
 import com.team1389.util.list.AddList;
 import com.team1389.watch.Watchable;
 import com.team1389.watch.info.BooleanInfo;
-import com.team1389.watch.info.EnumInfo;
-
-import sun.tools.tree.CommaExpression;
 
 public class Shooter extends Subsystem
 {
-    private State shooterState;
     private DigitalIn beamBreak;
     private DigitalOut leftShooter;
     private DigitalOut rightShooter;
@@ -29,7 +23,7 @@ public class Shooter extends Subsystem
     }
     public AddList<Watchable> getSubWatchables(AddList<Watchable> stem)
     {
-        return stem.put(new EnumInfo("shooter state", () -> shooterState), scheduler, new BooleanInfo("ball", this::hasBall));
+        return stem.put(scheduler, new BooleanInfo("ball", this::hasBall));
     }
     protected void schedule(Command command)
     {
@@ -41,39 +35,11 @@ public class Shooter extends Subsystem
     }
     public void init()
     {
-        if(hasBall())
-        {
-            enterState(State.CARRYING);
-        }
-        else
-        {
-            enterState(State.EMPTY);
-        }
+
     }
     public void update()
     {
 
-    }
-    public State getState()
-    {
-        return this.shooterState;
-    }
-    public enum State
-    {
-        CARRYING, EMPTY
-    }
-    public void enterState(State state)
-    {
-        if(state == shooterState){
-            return;
-        }
-        switch(state)
-        {
-        case EMPTY:
-            return (resetShooter());
-        case CARRYING:
-            return (shootLeftCommand());
-        }
     }
     public void shootRight()
     {
@@ -91,15 +57,21 @@ public class Shooter extends Subsystem
     {
         return CommandUtil.createCommand(this::shootLeft);
     }
-    public void resetShooter()
+    public void resetRightShooter()
     {
         rightShooter.set(false);
+    }
+    public void resetLeftShooter()
+    {
         leftShooter.set(false);
     }
-    
-    public Command resetShooterCommand()
+    public Command resetRightShooterCommand()
     {
-        return CommandUtil.createCommand(this::resetShooter);
+        return CommandUtil.createCommand(this::resetRightShooter);
+    }
+    public Command resetLeftShooterCommand()
+    {
+        return CommandUtil.createCommand(this::resetLeftShooter);
     }
     public boolean hasBall()
     {
