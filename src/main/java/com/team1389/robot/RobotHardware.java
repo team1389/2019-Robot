@@ -22,10 +22,7 @@ public class RobotHardware extends RobotLayout
 	{
 		registry = new Registry();
 		System.out.println("initializing hardware");
-	
+
 	}
-
-
-
 
 }

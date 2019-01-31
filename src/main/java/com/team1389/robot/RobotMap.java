@@ -1,6 +1,5 @@
 package com.team1389.robot;
 
-
 /**
  * The RobotMap is a mapping from the ports sensors and actuators are wired into
  * to a variable name. This provides flexibility changing wiring, makes checking
@@ -21,7 +20,7 @@ package com.team1389.robot;
  * <em>inv_ASSOCIATED_IO_IDENTIFIER</em> for outputs and
  * <em>sinv_ASSOCIATED_IO_IDENTIFIER</em> for inputs.
  */
-public class RobotMap {
-	
+public class RobotMap
+{
 
 }
